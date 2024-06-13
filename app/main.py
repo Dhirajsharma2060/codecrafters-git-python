@@ -87,17 +87,16 @@ def ls_tree(tree_sha, name_only=False):
         print(f"Error: Failed to decompress object {tree_sha}")
 def write_tree():
     try:
-        #generate tree content recursively using the def generate_tree_content
-        tree_content=generate_tree_content(".")
-        tree_content_str=""
-        for mode,name,sha1 in tree_content:
-            tree_content_str+=f"{mode} {name} \0 {sha1}".encode()
-        # Calculate SHA-1 hash of the tree content
+        tree_content = generate_tree_content(".")  # Pass the root directory
+        tree_content_str = ""
+        
+        for mode, sha1, name in tree_content:
+            tree_content_str += f"{mode} {name}\0{sha1}".encode()
+
         sha1_hash = hashlib.sha1(tree_content_str).hexdigest()
-        # Create the tree object file path
         obj_dir = f".git/objects/{sha1_hash[:2]}"
         obj_path = f"{obj_dir}/{sha1_hash[2:]}"
-        # Check if the object already exists
+        
         if not os.path.exists(obj_path):
             os.makedirs(obj_dir, exist_ok=True)
             with open(obj_path, "wb") as f:
@@ -105,9 +104,9 @@ def write_tree():
             print(sha1_hash)
         else:
             print(f"Tree object with SHA-1 hash {sha1_hash} already exists")
-    except Exception as e:
-        print("Error writing tree object:{e}")    
 
+    except Exception as e:
+        print(f"Error writing tree object: {e}")
 def generate_tree_content(root_dir):
     tree_content = []
     
@@ -167,8 +166,8 @@ def main():
             ls_tree(sys.argv[2])
         else:
             print("Usage: script.py ls-tree [--name-only] <sha1>")
-    elif command=="write_tree":
-        write_tree()        
+    elif command == "write-tree":  # Handle the write-tree command
+        write_tree()
     else:
         print(f"Unknown command: {command}")
 
