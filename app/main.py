@@ -85,6 +85,55 @@ def ls_tree(tree_sha, name_only=False):
         print(f"Error: Object {tree_sha} not found")
     except zlib.error:
         print(f"Error: Failed to decompress object {tree_sha}")
+def write_tree():
+    try:
+        #generate tree content recursively using the def generate_tree_content
+        tree_content=generate_tree_content(".")
+        tree_content_str=""
+        for mode,name,sha1 in tree_content:
+            tree_content_str+=f"{mode} {name} \0 {sha1}".encode()
+        # Calculate SHA-1 hash of the tree content
+        sha1_hash = hashlib.sha1(tree_content_str).hexdigest()
+        # Create the tree object file path
+        obj_dir = f".git/objects/{sha1_hash[:2]}"
+        obj_path = f"{obj_dir}/{sha1_hash[2:]}"
+        # Check if the object already exists
+        if not os.path.exists(obj_path):
+            os.makedirs(obj_dir, exist_ok=True)
+            with open(obj_path, "wb") as f:
+                f.write(zlib.compress(tree_content_str))
+            print(sha1_hash)
+        else:
+            print(f"Tree object with SHA-1 hash {sha1_hash} already exists")
+    except Exception as e:
+        print("Error writing tree object:{e}")    
+
+def generate_tree_content(root_dir):
+    tree_content = []
+    
+    for root, dirs, files in os.walk(root_dir):
+        dirs[:] = [d for d in dirs if not d.startswith(".")]  # Ignore .git directory
+        for file in files:
+            if not file.startswith("."):  # Ignore hidden files
+                file_path = os.path.relpath(os.path.join(root, file), start=root_dir)
+                mode = "100644"  # Default mode for files
+                sha1 = hash_file(file_path)
+                tree_content.append((mode, sha1, file_path))
+        
+        for dir in dirs:
+            dir_path = os.path.relpath(os.path.join(root, dir), start=root_dir)
+            mode = "40000"  # Mode for directories
+            sha1 = generate_tree_content(os.path.join(root, dir))
+            tree_content.append((mode, sha1, dir_path))
+    
+    tree_content.sort(key=lambda entry: entry[2])  # Sort by name
+    return tree_content
+
+def hash_file(file_path):
+    with open(file_path, "rb") as f:
+        content = f.read()
+        sha1_hash = hashlib.sha1(content).hexdigest()
+    return sha1_hash
 
 def main():
     if len(sys.argv) < 2:
@@ -118,6 +167,8 @@ def main():
             ls_tree(sys.argv[2])
         else:
             print("Usage: script.py ls-tree [--name-only] <sha1>")
+    elif command=="write_tree":
+        write_tree()        
     else:
         print(f"Unknown command: {command}")
 
