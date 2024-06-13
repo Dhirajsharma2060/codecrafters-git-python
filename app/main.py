@@ -41,7 +41,7 @@ def hash_object(content):
             os.makedirs(obj_dir, exist_ok=True)
             with open(obj_path, "wb") as f:
                 f.write(zlib.compress(full_content))
-            print(f"40-char SHA {sha1_hash}")
+            print(f"{sha1_hash}")
         else:
             print(f"Object with SHA-1 hash {sha1_hash} already exists")
     except Exception as e:
