@@ -46,6 +46,34 @@ def hash_object(content):
             print(f"Object with SHA-1 hash {sha1_hash} already exists")
     except Exception as e:
         print(f"Error hashing object: {e}")
+def ls_tree(tree_sha): 
+    try:
+        path=f".git/object/{tree_sha[:2]/{tree_sha[2:]}}"
+        with open(path,"rb") as f:
+            raw = zlib.decompress(f.read())
+            header, content = raw.split(b"\0", maxsplit=1)
+            
+            if not header.startswith(b"tree"):
+                print(f"Error: Object {tree_sha} is not a tree")
+                return
+            i=0
+            while i<len(content):
+                mode_end=content.find(b'',i)
+                mode=content[i:mode_end].decode('utf-8')     
+                i=mode_end+1
+                name_end=content.find(b'\0',i)
+                name=content[i:name_end].decode('utf-8') 
+                i=name_end+1
+                sha1=content[i:i+20].hex() 
+                i+=20
+                obj_type="tree" if mode =="4000" else "blob"
+                print(f"{mode} {obj_type} {name} {sha1}")
+    except FileNotFoundError:
+        print(f"Object {tree_sha} not found")
+    except zlib.error:
+        print(f"Error: Failed to decompress object {tree_sha}")
+                        
+
 
 def main():
     if len(sys.argv) < 2:
@@ -72,8 +100,14 @@ def main():
                 print(f"Error: File '{filename}' not found")
         else:
             print("Usage: script.py hash-object -w <filename>")
+    
+    elif command == "ls-tree":
+        if len(sys.argv) == 3:
+            ls_tree(sys.argv[2])  # Pass SHA-1 hash to ls_tree function
+        else:
+            print("Usage: script.py ls-tree <sha1>")
     else:
-        print(f"Unknown command: {command}")
+        print(f"Unknown command: {command}")    
 
 if __name__ == "__main__":
     main()
