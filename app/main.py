@@ -2,6 +2,7 @@ import sys
 import os
 import zlib
 import hashlib
+import time 
 
 def init():
     try:
@@ -168,6 +169,43 @@ def create_blob(file_path):
     except Exception as e:
         print(f"Error creating blob object: {e}")
         return None
+def read_head():
+    try:
+        with open(".git/HEAD", "r") as f:
+            ref = f.readline().strip().split(": ")[1]
+        return ref
+    except FileNotFoundError:
+        print("Error: .git/HEAD file not found")
+        return None   
+def create_commit(tree_sha1, message):
+    ref = read_head()
+    if not ref:
+        return
+    
+    ref_path = f".git/{ref}"
+    parent_commit = None
+    
+    if os.path.exists(ref_path):
+        with open(ref_path, "r") as f:
+            parent_commit = f.read().strip()
+    
+    author = "Your Name <your.email@example.com>"
+    timestamp = int(time.time())
+    timezone = time.strftime("%z", time.gmtime())
+    commit_content = f"tree {tree_sha1}\n"
+    
+    if parent_commit:
+        commit_content += f"parent {parent_commit}\n"
+    
+    commit_content += f"author {author} {timestamp} {timezone}\n"
+    commit_content += f"committer {author} {timestamp} {timezone}\n\n"
+    commit_content += f"{message}\n"
+    
+    commit_sha1 = hash_object(commit_content)
+    with open(ref_path, "w") as f:
+        f.write(commit_sha1)
+    
+    print(commit_sha1)    
 
 def main():
     if len(sys.argv) < 2:
@@ -203,6 +241,13 @@ def main():
             print("Usage: script.py ls-tree [--name-only] <sha1>")
     elif command == "write-tree":
         write_tree()
+    elif command == "commit":
+        if len(sys.argv) >= 3:
+            message = sys.argv[2]
+            tree_sha1 = write_tree()
+            create_commit(tree_sha1, message)
+        else:
+            print("Usage: script.py commit <message>")    
     else:
         print(f"Unknown command: {command}")
 
