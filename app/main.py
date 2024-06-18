@@ -160,6 +160,28 @@ def ls_tree(tree_sha1, name_only=False):
         else:
             print(f"{mode} {sha} {name}")
 
+def hash_object_command(file_path, write):
+    try:
+        with open(file_path, "rb") as f:
+            content = f.read()
+        header = f"blob {len(content)}\0".encode()
+        full_content = header + content
+        sha1_hash = hashlib.sha1(full_content).hexdigest()
+        
+        if write:
+            obj_dir = f".git/objects/{sha1_hash[:2]}"
+            obj_path = f"{obj_dir}/{sha1_hash[2:]}"
+            if not os.path.exists(obj_path):
+                os.makedirs(obj_dir, exist_ok=True)
+                with open(obj_path, "wb") as f:
+                    f.write(zlib.compress(full_content))
+        
+        print(sha1_hash)
+    except FileNotFoundError:
+        print(f"Error: file '{file_path}' not found")
+    except Exception as e:
+        print(f"Error hashing object: {e}")
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: script.py <command> [<args>]")
@@ -193,6 +215,13 @@ def main():
             ls_tree(tree_sha1, name_only=True)
         else:
             print("Usage: script.py ls-tree --name-only <tree_sha>")
+    elif command == "hash-object":
+        if len(sys.argv) >= 3:
+            file_path = sys.argv[2]
+            write = "-w" in sys.argv
+            hash_object_command(file_path, write)
+        else:
+            print("Usage: script.py hash-object [-w] <file>")
     else:
         print(f"Unknown command: {command}")
 
