@@ -120,6 +120,46 @@ def create_commit(tree_sha1, parent_sha1, message):
             f.write(zlib.compress(full_content.encode("utf-8")))
     return sha1_hash
 
+def read_tree(tree_sha1):
+    obj_dir = f".git/objects/{tree_sha1[:2]}"
+    obj_path = f"{obj_dir}/{tree_sha1[2:]}"
+    
+    try:
+        with open(obj_path, "rb") as f:
+            compressed_content = f.read()
+        full_content = zlib.decompress(compressed_content)
+        _, tree_content = full_content.split(b'\0', 1)
+        
+        entries = []
+        i = 0
+        while i < len(tree_content):
+            space_index = tree_content.find(b' ', i)
+            null_index = tree_content.find(b'\0', space_index)
+            mode = tree_content[i:space_index].decode()
+            name = tree_content[space_index + 1:null_index].decode()
+            sha = tree_content[null_index + 1:null_index + 21].hex()
+            entries.append((mode, name, sha))
+            i = null_index + 21
+        
+        return entries
+    except FileNotFoundError:
+        print("Error: Tree object not found")
+        return None
+    except Exception as e:
+        print(f"Error reading tree object: {e}")
+        return None
+
+def ls_tree(tree_sha1, name_only=False):
+    entries = read_tree(tree_sha1)
+    if not entries:
+        return
+
+    for mode, name, sha in entries:
+        if name_only:
+            print(name)
+        else:
+            print(f"{mode} {sha} {name}")
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: script.py <command> [<args>]")
@@ -147,6 +187,12 @@ def main():
                 print(commit_sha1)
         else:
             print("Usage: script.py commit-tree <tree_sha> [-p <parent_sha>] -m <message>")
+    elif command == "ls-tree":
+        if len(sys.argv) >= 4 and sys.argv[2] == "--name-only":
+            tree_sha1 = sys.argv[3]
+            ls_tree(tree_sha1, name_only=True)
+        else:
+            print("Usage: script.py ls-tree --name-only <tree_sha>")
     else:
         print(f"Unknown command: {command}")
 
