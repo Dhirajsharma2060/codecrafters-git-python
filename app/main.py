@@ -177,36 +177,21 @@ def read_head():
     except FileNotFoundError:
         print("Error: .git/HEAD file not found")
         return None   
-def create_commit(tree_sha1, message):
-    ref = read_head()
-    if not ref:
-        return
-    
-    ref_path = f".git/{ref}"
-    parent_commit = None
-    
-    if os.path.exists(ref_path):
-        with open(ref_path, "r") as f:
-            parent_commit = f.read().strip()
-    
+def create_commit(tree_sha1, parent_sha1, message):
     author = "Your Name <your.email@example.com>"
     timestamp = int(time.time())
     timezone = time.strftime("%z", time.gmtime())
     commit_content = f"tree {tree_sha1}\n"
     
-    if parent_commit:
-        commit_content += f"parent {parent_commit}\n"
+    if parent_sha1:
+        commit_content += f"parent {parent_sha1}\n"
     
     commit_content += f"author {author} {timestamp} {timezone}\n"
     commit_content += f"committer {author} {timestamp} {timezone}\n\n"
     commit_content += f"{message}\n"
     
     commit_sha1 = hash_object(commit_content)
-    with open(ref_path, "w") as f:
-        f.write(commit_sha1)
-    
-    print(commit_sha1)    
-
+    return commit_sha1
 def main():
     if len(sys.argv) < 2:
         print("Usage: script.py <command> [<args>]")
