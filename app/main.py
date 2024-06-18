@@ -91,8 +91,11 @@ def write_tree():
         tree_content_str = ""
         
         for mode, sha1, name in tree_content:
-            tree_content_str += f"{mode} {name}\0{sha1}".encode()
+            entry = f"{mode} {name}\0".encode() + bytes.fromhex(sha1)
+            tree_content_str += entry
 
+        header = f"tree {len(tree_content_str)}\0".encode()
+        full_content = header + tree_content_str
         sha1_hash = hashlib.sha1(tree_content_str).hexdigest()
         obj_dir = f".git/objects/{sha1_hash[:2]}"
         obj_path = f"{obj_dir}/{sha1_hash[2:]}"
@@ -127,12 +130,49 @@ def generate_tree_content(root_dir):
     
     tree_content.sort(key=lambda entry: entry[2])  # Sort by name
     return tree_content
+def write_tree_recursive(dir_path):
+    tree_content = generate_tree_content(dir_path)
+    tree_content_bytes = b""
+    
+    for mode, sha1, name in tree_content:
+        entry = f"{mode} {name}\0".encode() + bytes.fromhex(sha1)
+        tree_content_bytes += entry
+    
+    header = f"tree {len(tree_content_bytes)}\0".encode()
+    full_content = header + tree_content_bytes
+    sha1_hash = hashlib.sha1(full_content).hexdigest()
+    obj_dir = f".git/objects/{sha1_hash[:2]}"
+    obj_path = f"{obj_dir}/{sha1_hash[2:]}"
+    
+    if not os.path.exists(obj_path):
+        os.makedirs(obj_dir, exist_ok=True)
+        with open(obj_path, "wb") as f:
+            f.write(zlib.compress(full_content))
+    return sha1_hash
 
 def hash_file(file_path):
     with open(file_path, "rb") as f:
         content = f.read()
         sha1_hash = hashlib.sha1(content).hexdigest()
     return sha1_hash
+def create_blob(file_path):
+    try:
+        with open(file_path, "rb") as f:
+            content = f.read()
+        header = f"blob {len(content)}\0".encode()
+        full_content = header + content
+        sha1_hash = hashlib.sha1(full_content).hexdigest()
+        obj_dir = f".git/objects/{sha1_hash[:2]}"
+        obj_path = f"{obj_dir}/{sha1_hash[2:]}"
+        
+        if not os.path.exists(obj_path):
+            os.makedirs(obj_dir, exist_ok=True)
+            with open(obj_path, "wb") as f:
+                f.write(zlib.compress(full_content))
+        return sha1_hash
+    except Exception as e:
+        print(f"Error creating blob object: {e}")
+        return None
 
 def main():
     if len(sys.argv) < 2:
