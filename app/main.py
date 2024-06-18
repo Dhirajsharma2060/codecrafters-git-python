@@ -103,19 +103,22 @@ def create_commit(tree_sha1, parent_sha1, message):
     commit_content = f"tree {tree_sha1}\n"
     
     if parent_sha1:
-        parent_path = f".git/objects/{parent_sha1[:2]}/{parent_sha1[2:]}"
-        if os.path.exists(parent_path):
-            commit_content += f"parent {parent_sha1}\n"
-        else:
-            print(f"Error: Parent commit {parent_sha1} not found")
-            return None
+        commit_content += f"parent {parent_sha1}\n"
     
     commit_content += f"author {author} {timestamp} {timezone}\n"
     commit_content += f"committer {author} {timestamp} {timezone}\n\n"
     commit_content += f"{message}\n"
     
-    commit_sha1 = hash_object(commit_content)
-    return commit_sha1
+    full_content = f"commit {len(commit_content)}\0{commit_content}"
+    sha1_hash = hashlib.sha1(full_content.encode("utf-8")).hexdigest()
+    obj_dir = f".git/objects/{sha1_hash[:2]}"
+    obj_path = f"{obj_dir}/{sha1_hash[2:]}"
+
+    if not os.path.exists(obj_path):
+        os.makedirs(obj_dir, exist_ok=True)
+        with open(obj_path, "wb") as f:
+            f.write(zlib.compress(full_content.encode("utf-8")))
+    return sha1_hash
 
 def main():
     if len(sys.argv) < 2:
@@ -136,8 +139,14 @@ def main():
             commit_sha1 = create_commit(tree_sha1, parent_sha1, message)
             if commit_sha1:
                 print(commit_sha1)
+        elif len(sys.argv) == 5 and sys.argv[3] == "-m":
+            tree_sha1 = sys.argv[2]
+            message = sys.argv[4]
+            commit_sha1 = create_commit(tree_sha1, None, message)
+            if commit_sha1:
+                print(commit_sha1)
         else:
-            print("Usage: script.py commit-tree <tree_sha> -p <parent_sha> -m <message>")
+            print("Usage: script.py commit-tree <tree_sha> [-p <parent_sha>] -m <message>")
     else:
         print(f"Unknown command: {command}")
 
