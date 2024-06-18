@@ -133,10 +133,10 @@ def main():
     elif command == "write-tree":
         write_tree()
     elif command == "commit-tree":
-        if len(sys.argv) >= 6 and sys.argv[2] == "-p" and sys.argv[4] == "-m":
-            tree_sha1 = sys.argv[1]
-            parent_sha1 = sys.argv[3]
-            message = sys.argv[5]
+        if len(sys.argv) >= 7 and sys.argv[3] == "-p" and sys.argv[5] == "-m":
+            tree_sha1 = sys.argv[2]
+            parent_sha1 = sys.argv[4]
+            message = sys.argv[6]
             commit_sha1 = create_commit(tree_sha1, parent_sha1, message)
             print(commit_sha1)
         else:
