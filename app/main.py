@@ -96,15 +96,6 @@ def write_tree():
         print(f"Error writing tree object: {e}")
         return None
 
-def read_head():
-    try:
-        with open(".git/HEAD", "r") as f:
-            ref = f.readline().strip().split(": ")[1]
-        return ref
-    except FileNotFoundError:
-        print("Error: .git/HEAD file not found")
-        return None
-
 def create_commit(tree_sha1, parent_sha1, message):
     author = "Your Name <your.email@example.com>"
     timestamp = int(time.time())
@@ -112,7 +103,12 @@ def create_commit(tree_sha1, parent_sha1, message):
     commit_content = f"tree {tree_sha1}\n"
     
     if parent_sha1:
-        commit_content += f"parent {parent_sha1}\n"
+        parent_path = f".git/objects/{parent_sha1[:2]}/{parent_sha1[2:]}"
+        if os.path.exists(parent_path):
+            commit_content += f"parent {parent_sha1}\n"
+        else:
+            print(f"Error: Parent commit {parent_sha1} not found")
+            return None
     
     commit_content += f"author {author} {timestamp} {timezone}\n"
     commit_content += f"committer {author} {timestamp} {timezone}\n\n"
@@ -138,7 +134,8 @@ def main():
             parent_sha1 = sys.argv[4]
             message = sys.argv[6]
             commit_sha1 = create_commit(tree_sha1, parent_sha1, message)
-            print(commit_sha1)
+            if commit_sha1:
+                print(commit_sha1)
         else:
             print("Usage: script.py commit-tree <tree_sha> -p <parent_sha> -m <message>")
     else:
