@@ -85,51 +85,51 @@ def ls_tree(tree_sha, name_only=False):
         print(f"Error: Object {tree_sha} not found")
     except zlib.error:
         print(f"Error: Failed to decompress object {tree_sha}")
+
 def write_tree():
     try:
-        tree_content = generate_tree_content(".")  # Pass the root directory
-        tree_content_str = ""
+        tree_content = generate_tree_content(".")
+        tree_content_bytes = b""
         
         for mode, sha1, name in tree_content:
             entry = f"{mode} {name}\0".encode() + bytes.fromhex(sha1)
-            tree_content_str += entry
-
-        header = f"tree {len(tree_content_str)}\0".encode()
-        full_content = header + tree_content_str
-        sha1_hash = hashlib.sha1(tree_content_str).hexdigest()
+            tree_content_bytes += entry
+        
+        header = f"tree {len(tree_content_bytes)}\0".encode()
+        full_content = header + tree_content_bytes
+        sha1_hash = hashlib.sha1(full_content).hexdigest()
         obj_dir = f".git/objects/{sha1_hash[:2]}"
         obj_path = f"{obj_dir}/{sha1_hash[2:]}"
         
         if not os.path.exists(obj_path):
             os.makedirs(obj_dir, exist_ok=True)
             with open(obj_path, "wb") as f:
-                f.write(zlib.compress(tree_content_str))
-            print(sha1_hash)
-        else:
-            print(f"Tree object with SHA-1 hash {sha1_hash} already exists")
-
+                f.write(zlib.compress(full_content))
+        print(sha1_hash)
     except Exception as e:
         print(f"Error writing tree object: {e}")
+
 def generate_tree_content(root_dir):
     tree_content = []
     
-    for root, dirs, files in os.walk(root_dir):
-        dirs[:] = [d for d in dirs if not d.startswith(".")]  # Ignore .git directory
-        for file in files:
-            if not file.startswith("."):  # Ignore hidden files
-                file_path = os.path.relpath(os.path.join(root, file), start=root_dir)
-                mode = "100644"  # Default mode for files
-                sha1 = hash_file(file_path)
-                tree_content.append((mode, sha1, file_path))
+    for entry in os.listdir(root_dir):
+        if entry == ".git":
+            continue
         
-        for dir in dirs:
-            dir_path = os.path.relpath(os.path.join(root, dir), start=root_dir)
-            mode = "40000"  # Mode for directories
-            sha1 = generate_tree_content(os.path.join(root, dir))
-            tree_content.append((mode, sha1, dir_path))
+        entry_path = os.path.join(root_dir, entry)
+        
+        if os.path.isdir(entry_path):
+            mode = "40000"
+            sha1 = write_tree_recursive(entry_path)
+            tree_content.append((mode, sha1, entry))
+        elif os.path.isfile(entry_path):
+            mode = "100644"
+            sha1 = create_blob(entry_path)
+            tree_content.append((mode, sha1, entry))
     
     tree_content.sort(key=lambda entry: entry[2])  # Sort by name
     return tree_content
+
 def write_tree_recursive(dir_path):
     tree_content = generate_tree_content(dir_path)
     tree_content_bytes = b""
@@ -150,11 +150,6 @@ def write_tree_recursive(dir_path):
             f.write(zlib.compress(full_content))
     return sha1_hash
 
-def hash_file(file_path):
-    with open(file_path, "rb") as f:
-        content = f.read()
-        sha1_hash = hashlib.sha1(content).hexdigest()
-    return sha1_hash
 def create_blob(file_path):
     try:
         with open(file_path, "rb") as f:
@@ -206,7 +201,7 @@ def main():
             ls_tree(sys.argv[2])
         else:
             print("Usage: script.py ls-tree [--name-only] <sha1>")
-    elif command == "write-tree":  # Handle the write-tree command
+    elif command == "write-tree":
         write_tree()
     else:
         print(f"Unknown command: {command}")
