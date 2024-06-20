@@ -252,17 +252,17 @@ def main():
             (_, _, hash) = toEntry(Path(".").absolute(), True)
             print(hash)
         case ["commit-tree", tree_sha, "-p", commit_sha, "-m", message]:
-            contents = b"".join(
-                [
-                    b"tree %b\n" % tree_sha.encode(),
-                    b"parent %b\n" % commit_sha.encode(),
-                    b"author Your Name <your.email@example.com> %d +0000\n" % int(time.time()).encode(),
-                    b"committer Your Name <your.email@example.com> %d +0000\n" % int(time.time()).encode(),
-                    b"\n",
-                    message.encode(),
-                    b"\n",
-                ]
-            )
+            import time
+            author_info = "Your Name <your.email@example.com>"
+            timestamp = int(time.time())
+            timezone = "+0000"
+            commit_contents = f"tree {tree_sha}\n"
+            commit_contents += f"parent {commit_sha}\n"
+            commit_contents += f"author {author_info} {timestamp} {timezone}\n"
+            commit_contents += f"committer {author_info} {timestamp} {timezone}\n\n"
+            commit_contents += f"{message}\n"
+
+            contents = b"commit " + str(len(commit_contents)).encode() + b"\0" + commit_contents.encode()
             hash = write_object(Path("."), "commit", contents)
             print(hash)
         case _:
