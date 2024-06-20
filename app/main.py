@@ -3,8 +3,8 @@ import sys
 import zlib
 import hashlib
 from pathlib import Path
-import os
 from typing import Tuple, List
+import os
 
 def read_object(parent: Path, sha: str) -> bytes:
     pre = sha[:2]
