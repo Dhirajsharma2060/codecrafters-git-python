@@ -1,11 +1,11 @@
-from operator import itemgetter
-import sys
 import os
-import time
-import zlib
+import sys
 import hashlib
+import zlib
+import time
 from pathlib import Path
 from typing import Tuple, List
+from operator import itemgetter
 
 def read_object(parent: Path, sha: str) -> bytes:
     pre = sha[:2]
@@ -17,7 +17,7 @@ def read_object(parent: Path, sha: str) -> bytes:
 
 def write_object(parent: Path, ty: str, content: bytes) -> str:
     content = ty.encode() + b" " + f"{len(content)}".encode() + b"\0" + content
-    hash = hashlib.sha1(content, usedforsecurity=False).hexdigest()
+    hash = hashlib.sha1(content).hexdigest()
     compressed_content = zlib.compress(content)
     pre = hash[:2]
     post = hash[2:]
@@ -28,29 +28,16 @@ def write_object(parent: Path, ty: str, content: bytes) -> str:
 
 def init():
     try:
-        Path(".git/").mkdir(parents=True)
-        Path(".git/objects").mkdir(parents=True)
-        Path(".git/refs").mkdir(parents=True)
-        Path(".git/HEAD").write_text("ref: refs/heads/main\n")
+        os.mkdir(".git")
+        os.mkdir(".git/objects")
+        os.mkdir(".git/refs")
+        with open(".git/HEAD", "w") as f:
+            f.write("ref: refs/heads/main\n")
         print("Initialized git directory")
     except FileExistsError:
         print("Error: .git directory already exists")
     except OSError as e:
         print(f"Error creating .git directory: {e}")
-
-def hash_object(content):
-    content_bytes = content.encode("utf-8")
-    header = f"blob {len(content_bytes)}\0"
-    full_content = header.encode("utf-8") + content_bytes
-    sha1_hash = hashlib.sha1(full_content).hexdigest()
-    obj_dir = f".git/objects/{sha1_hash[:2]}"
-    obj_path = f"{obj_dir}/{sha1_hash[2:]}"
-
-    if not os.path.exists(obj_path):
-        os.makedirs(obj_dir, exist_ok=True)
-        with open(obj_path, "wb") as f:
-            f.write(zlib.compress(full_content))
-    return sha1_hash
 
 def generate_tree_content(root_dir):
     tree_content = []
