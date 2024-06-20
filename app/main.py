@@ -5,6 +5,8 @@ import hashlib
 from pathlib import Path
 from typing import Tuple, List
 import requests
+import os 
+
 def read_object(parent: Path, sha: str) -> bytes:
     pre = sha[:2]
     post = sha[2:]
@@ -12,9 +14,10 @@ def read_object(parent: Path, sha: str) -> bytes:
     bs = p.read_bytes()
     _, content = zlib.decompress(bs).split(b"\0", maxsplit=1)
     return content
+
 def write_object(parent: Path, ty: str, content: bytes) -> str:
     content = ty.encode() + b" " + f"{len(content)}".encode() + b"\0" + content
-    hash = hashlib.sha1(content, usedforsecurity=False).hexdigest()
+    hash = hashlib.sha1(content).hexdigest()
     compressed_content = zlib.compress(content)
     pre = hash[:2]
     post = hash[2:]
@@ -22,8 +25,12 @@ def write_object(parent: Path, ty: str, content: bytes) -> str:
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_bytes(compressed_content)
     return hash
-#clone repo feature 
-def clone_repository(repo_url: str):
+
+def clone_repository(repo_url: str, destination_dir: str):
+    # Create the destination directory if it doesn't exist
+    if not os.path.exists(destination_dir):
+        os.makedirs(destination_dir)
+
     # Fetch repository data from the URL
     response = requests.get(repo_url)
     if response.status_code == 200:
@@ -34,7 +41,7 @@ def clone_repository(repo_url: str):
         references = repo_data['references']
 
         # Create directories and files to replicate repository structure
-        local_repo_path = Path(".git")
+        local_repo_path = Path(destination_dir) / ".git"
         local_repo_path.mkdir(parents=True, exist_ok=True)
 
         for obj_sha, obj_content in objects.items():
@@ -47,7 +54,6 @@ def clone_repository(repo_url: str):
         print("Cloned repository successfully")
     else:
         print("Failed to clone repository")
-
 
 def main():
     match sys.argv[1:]:
@@ -108,7 +114,17 @@ def main():
             )
             hash = write_object(Path("."), "commit", contents)
             print(hash)
-        case ["clone", repo_url]:
-            clone_repository(repo_url)    
+        case ["clone", repo_url, destination_dir]:
+            clone_repository(repo_url, destination_dir)
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) != 4:
+        print("Usage: python your_git_clone.py clone <repository_url> <destination_directory>")
+        sys.exit(1)
+
+    _, command, repo_url, destination_dir = sys.argv
+    if command != "clone":
+        print("Invalid command. Use 'clone' to clone a repository.")
+        sys.exit(1)
+
+    clone_repository(repo_url, destination_dir)
