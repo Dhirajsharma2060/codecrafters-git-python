@@ -76,3 +76,16 @@ def main():
 
 if __name__ == "__main__":
     main()
+def main():
+    if len(sys.argv) != 4 or sys.argv[1] != "clone":
+        print("Usage: python your_git_clone.py clone <repository_url> <destination_directory>")
+        sys.exit(1)
+
+    repository_url = sys.argv[2]
+    destination_directory = sys.argv[3]
+    
+    # Call the clone_repository function with the extracted arguments
+    clone_repository(repository_url, destination_directory)
+
+if __name__ == "__main__":
+    main()
