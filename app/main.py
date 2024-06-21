@@ -4,52 +4,54 @@ import zlib
 import hashlib
 import struct
 from pathlib import Path
+#from typing import Tuple, List
 from typing import Tuple, List, cast
 import urllib.request
-
-# Read an object from the .git directory
-def read_object(parent: Path, sha: str) -> Tuple[str, bytes]:  # Correct return type
-    pre = sha[:2]
-    post = sha[2:]
-    p = parent / ".git" / "objects" / pre / post
-    bs = p.read_bytes()
-    head, content = zlib.decompress(bs).split(b"\0", maxsplit=1)  # Fixed split
-    ty, _ = head.split(b" ")
-    return ty.decode(), content  # Return both type and content
-
-# Initialize a new repository
+#def read_object(parent: Path, sha: str) -> bytes:
 def init_repo(parent: Path):
     (parent / ".git").mkdir(parents=True)
     (parent / ".git" / "objects").mkdir(parents=True)
     (parent / ".git" / "refs").mkdir(parents=True)
     (parent / ".git" / "refs" / "heads").mkdir(parents=True)
     (parent / ".git" / "HEAD").write_text("ref: refs/heads/main\n")
-
-# Write an object to the .git directory
+def read_object(parent: Path, sha: str) -> Tuple[str, bytes]:
+    pre = sha[:2]
+    post = sha[2:]
+    p = parent / ".git" / "objects" / pre / post
+    bs = p.read_bytes()
+    _, content = zlib.decompress(bs).split(b"\0", maxsplit=1)
+    return content
+    head, content = zlib.decompress(bs).split(b"\0", maxsplit=1)
+    ty, _ = head.split(b" ")
+    return ty.decode(), content
 def write_object(parent: Path, ty: str, content: bytes) -> str:
     content = ty.encode() + b" " + f"{len(content)}".encode() + b"\0" + content
     hash = hashlib.sha1(content, usedforsecurity=False).hexdigest()
-    compressed_content = zlib.compress(content, level=zlib.Z_BEST_SPEED)  # Combined compression levels
+    compressed_content = zlib.compress(content)
+    compressed_content = zlib.compress(content, level=zlib.Z_BEST_SPEED)
     pre = hash[:2]
     post = hash[2:]
     p = parent / ".git" / "objects" / pre / post
-    p.parent.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
-    p.write_bytes(compressed_content)
-    return hash
-
+#Expand 5 lines
 def main():
     match sys.argv[1:]:
         case ["init"]:
-            init_repo(Path("."))  # Use the init_repo function
+            #Path(".git/").mkdir(parents=True)
+            #Path(".git/objects").mkdir(parents=True)
+            #Path(".git/refs").mkdir(parents=True)
+            #Path(".git/HEAD").write_text("ref: refs/heads/main\n")
+            init_repo(Path("."))
             print("Initialized git directory")
         case ["cat-file", "-p", blob_sha]:
-            ty, content = read_object(Path("."), blob_sha)
-            sys.stdout.buffer.write(content)  # Fixed to output only content
+            #sys.stdout.buffer.write(read_object(Path("."), blob_sha))
+            _, content = read_object(Path("."), blob_sha)
+            sys.stdout.buffer.write(content)
         case ["hash-object", "-w", path]:
             hash = write_object(Path("."), "blob", Path(path).read_bytes())
             print(hash)
         case ["ls-tree", "--name-only", tree_sha]:
             items = []
+            #contents = read_object(Path("."), tree_sha)
             _, contents = read_object(Path("."), tree_sha)
             while contents:
                 mode, contents = contents.split(b" ", 1)
@@ -97,7 +99,7 @@ def main():
         case ["clone", url, dir]:
             parent = Path(dir)
             init_repo(parent)
-            # Fetch refs
+            # fetch refs
             req = urllib.request.Request(f"{url}/info/refs?service=git-upload-pack")
             with urllib.request.urlopen(req) as f:
                 refs = {
@@ -108,10 +110,10 @@ def main():
                     and (bs2 := bs1.split(b"\0")[0])
                     and (bs := (bs2[4:] if bs2.endswith(b"HEAD") else bs2).split(b" "))
                 }
-            # Render refs
+            # render refs
             for name, sha in refs.items():
                 Path(parent / ".git" / name).write_text(sha + "\n")
-            # Fetch pack
+            # fetch pack
             body = (
                 b"0011command=fetch0001000fno-progress"
                 + b"".join(b"0032want " + ref.encode() + b"\n" for ref in refs.values())
@@ -132,7 +134,6 @@ def main():
                 pack_lines.append(pack_bytes[4:line_len])
                 pack_bytes = pack_bytes[line_len:]
             pack_file = b"".join(l[1:] for l in pack_lines[1:])
-            # Define next_size_type and next_size helper functions
             def next_size_type(bs: bytes) -> Tuple[str, int, bytes]:
                 ty = (bs[0] & 0b_0111_0000) >> 4
                 match ty:
@@ -167,29 +168,35 @@ def main():
                     off += 7
                     i += 1
                 return size, bs[i:]
-            # Get objs
-            pack_file = pack_file[8:]  # Strip header and version
+            # get objs
+            pack_file = pack_file[8:]  # strip header and version
             n_objs, *_ = struct.unpack("!I", pack_file[:4])
             pack_file = pack_file[4:]
             for _ in range(n_objs):
                 ty, _, pack_file = next_size_type(pack_file)
                 match ty:
-                    case "commit" | "tree" | "blob":
-                        base_ty = ty
-                        base_content = pack_file[:size]
-                        hash = write_object(parent, ty, base_content)
-                        pack_file = pack_file[size:]
+                    case "commit" | "tree" | "blob" | "tag":
+                        dec = zlib.decompressobj()
+                        content = dec.decompress(pack_file)
+                        pack_file = dec.unused_data
+                        write_object(parent, ty, content)
                     case "ref_delta":
-                        base_sha = pack_file[:20].hex()
-                        base_ty, base_content = read_object(parent, base_sha)
+                        obj = pack_file[:20].hex()
                         pack_file = pack_file[20:]
-                        content = pack_file[:size]
-                        pack_file = pack_file[size:]
+                        dec = zlib.decompressobj()
+                        content = dec.decompress(pack_file)
+                        pack_file = dec.unused_data
                         target_content = b""
+                        base_ty, base_content = read_object(parent, obj)
+                        # base and output sizes
+                        _, content = next_size(content)
+                        _, content = next_size(content)
                         while content:
-                            if content[0] & 0b_1000_0000:
-                                offset = size = 0
+                            is_copy = content[0] & 0b_1000_0000
+                            if is_copy:
                                 data_ptr = 1
+                                offset = 0
+                                size = 0
                                 for i in range(0, 4):
                                     if content[0] & (1 << i):
                                         offset |= content[data_ptr] << (i * 8)
@@ -198,21 +205,38 @@ def main():
                                     if content[0] & (1 << (4 + i)):
                                         size |= content[data_ptr] << (i * 8)
                                         data_ptr += 1
-                                if size == 0:
-                                    size = 0x1_00_00_00_00
+                                # do something with offset and size
+                                content = content[data_ptr:]
                                 target_content += base_content[offset : offset + size]
                             else:
-                                size = content[0] & 0b_0111_1111
-                                target_content += content[1 : size + 1]
-                            content = content[size + 1 :]
+                                size = content[0]
+                                append = content[1 : size + 1]
+                                content = content[size + 1 :]
+                                # do something with append
+                                target_content += append
                         write_object(parent, base_ty, target_content)
-                    case "ofs_delta":
-                        print("ofs_delta not supported", file=sys.stderr)
-                        return 1
-            Path(parent / ".git" / "HEAD").write_text("ref: refs/heads/main\n")
-        case _:
-            print(f"Invalid command: {' '.join(sys.argv[1:])}", file=sys.stderr)
-            return 1
-
+                    case _:
+                        raise RuntimeError("Not implemented")
+            # render tree
+            def render_tree(parent: Path, dir: Path, sha: str):
+                dir.mkdir(parents=True, exist_ok=True)
+                _, tree = read_object(parent, sha)
+                while tree:
+                    mode, tree = tree.split(b" ", 1)
+                    name, tree = tree.split(b"\0", 1)
+                    sha = tree[:20].hex()
+                    tree = tree[20:]
+                    match mode:
+                        case b"40000":
+                            render_tree(parent, dir / name.decode(), sha)
+                        case b"100644":
+                            _, content = read_object(parent, sha)
+                            Path(dir / name.decode()).write_bytes(content)
+                        case _:
+                            raise RuntimeError("Not implemented")
+            _, commit = read_object(parent, refs["HEAD"])
+            tree_sha = commit[5 : 40 + 5].decode()
+            render_tree(parent, parent, tree_sha)
 if __name__ == "__main__":
     main()
+
