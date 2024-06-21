@@ -6,6 +6,7 @@ import struct
 from pathlib import Path
 #from typing import Tuple, List
 from typing import Tuple, List, cast
+from typing import match
 import urllib.request
 #def read_object(parent: Path, sha: str) -> bytes:
 def init_repo(parent: Path):
@@ -26,9 +27,12 @@ def read_object(parent: Path, sha: str) -> Tuple[str, bytes]:
     return ty.decode(), content
 def write_object(parent: Path, ty: str, content: bytes) -> str:
     content = ty.encode() + b" " + f"{len(content)}".encode() + b"\0" + content
-    hash = hashlib.sha1(content, usedforsecurity=False).hexdigest()
-    compressed_content = zlib.compress(content)
+    #hash = hashlib.sha1(content, usedforsecurity=False).hexdigest()
+    #compressed_content = zlib.compress(content)
+    #compressed_content = zlib.compress(content, level=zlib.Z_BEST_SPEED)
+    hash = hashlib.sha1(content).hexdigest()
     compressed_content = zlib.compress(content, level=zlib.Z_BEST_SPEED)
+
     pre = hash[:2]
     post = hash[2:]
     p = parent / ".git" / "objects" / pre / post
