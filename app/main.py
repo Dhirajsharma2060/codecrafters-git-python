@@ -33,6 +33,7 @@ def write_object(parent: Path, ty: str, content: bytes) -> str:
     pre = hash[:2]
     post = hash[2:]
     p = parent / ".git" / "objects" / pre / post
+    p.parent.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
     p.write_bytes(compressed_content)
     return hash
 
@@ -173,28 +174,22 @@ def main():
             for _ in range(n_objs):
                 ty, _, pack_file = next_size_type(pack_file)
                 match ty:
-                    case "commit" | "tree" | "blob" | "tag":
-                        dec = zlib.decompressobj()
-                        content = dec.decompress(pack_file)
-                        pack_file = dec.unused_data
-                        write_object(parent, ty, content)
+                    case "commit" | "tree" | "blob":
+                        base_ty = ty
+                        base_content = pack_file[:size]
+                        hash = write_object(parent, ty, base_content)
+                        pack_file = pack_file[size:]
                     case "ref_delta":
-                        obj = pack_file[:20].hex()
+                        base_sha = pack_file[:20].hex()
+                        base_ty, base_content = read_object(parent, base_sha)
                         pack_file = pack_file[20:]
-                        dec = zlib.decompressobj()
-                        content = dec.decompress(pack_file)
-                        pack_file = dec.unused_data
+                        content = pack_file[:size]
+                        pack_file = pack_file[size:]
                         target_content = b""
-                        base_ty, base_content = read_object(parent, obj)
-                        # Base and output sizes
-                        _, content = next_size(content)
-                        _, content = next_size(content)
                         while content:
-                            is_copy = content[0] & 0b_1000_0000
-                            if is_copy:
+                            if content[0] & 0b_1000_0000:
+                                offset = size = 0
                                 data_ptr = 1
-                                offset = 0
-                                size = 0
                                 for i in range(0, 4):
                                     if content[0] & (1 << i):
                                         offset |= content[data_ptr] << (i * 8)
